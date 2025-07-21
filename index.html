@@ -495,7 +495,25 @@ loginBtn.onclick = async () => {
     updateAllCounts();
 
   } catch (error) {
-    alert('Błąd logowania/rejestracji: ' + error
+    alert('Błąd logowania/rejestracji: ' + error.message);
+  }
+};
+
+logoutBtn.onclick = async () => {
+  await signOut(auth);
+  currentUser = null;
+  monthsContainer.innerHTML = '';
+  document.getElementById('auth-form').style.display = 'block';
+  document.getElementById('user-info').style.display = 'none';
+  totalCount = 0;
+  updateTotalCount();
+};
+
+document.getElementById('cancel-btn').onclick = () => {
+  document.getElementById('form-modal').style.display = 'none';
+  editingCover = null;
+};
+
   </script>
 
 </body>
