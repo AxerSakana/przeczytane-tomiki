@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -163,6 +164,12 @@
       margin-top: 5px;
     }
   </style>
+  
+  <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+
 </head>
 <body>
 
@@ -204,282 +211,291 @@
   </div>
 
   <script>
-    const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
-    const monthsContainer = document.getElementById('months-container');
-    const popup = document.getElementById('details-popup');
-    let totalCount = 0;
-    let currentMonthIndex = null;
-    let editingCover = null;
-    let mangaData = Array.from({ length: 12 }, () => []);
-    let currentUser = null;
+  
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    const USERS_KEY = 'axer_users';
-    const getUsers = () => JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
-    const saveUsers = (users) => localStorage.setItem(USERS_KEY, JSON.stringify(users));
+const firebaseConfig = {
+  apiKey: "AIzaSyB1xUI3PgPEeF9DtMVvQLhwPhWzUHIfRqs",
+  authDomain: "przeczytane-tomiki.firebaseapp.com",
+  projectId: "przeczytane-tomiki",
+  storageBucket: "przeczytane-tomiki.firebasestorage.app",
+  messagingSenderId: "987723598190",
+  appId: "1:987723598190:web:32f1a220797a2d2581197f",
+  measurementId: "G-SMHTXFM8PR"
+};
 
-    const updateTotalCount = () => {
-      document.getElementById('total-count').textContent = totalCount;
-    };
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-    const updateAllCounts = () => {
-      totalCount = 0;
-      mangaData.forEach((list, idx) => {
-        let monthTotal = list.reduce((sum, m) => sum + m.woluminy, 0);
-        totalCount += monthTotal;
-        document.getElementById(`month-count-${idx}`).textContent = monthTotal;
-      });
-      updateTotalCount();
-    };
+const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+const monthsContainer = document.getElementById('months-container');
+const popup = document.getElementById('details-popup');
+let totalCount = 0;
+let currentMonthIndex = null;
+let editingCover = null;
+let mangaData = Array.from({ length: 12 }, () => []);
+let currentUser = null;
 
-    function saveData() {
-      if (!currentUser) return;
-      const users = getUsers();
-      if (!users[currentUser]) return;
-      users[currentUser].data = mangaData;
-      saveUsers(users);
+const updateTotalCount = () => {
+  document.getElementById('total-count').textContent = totalCount;
+};
+
+const updateAllCounts = () => {
+  totalCount = 0;
+  mangaData.forEach((list, idx) => {
+    let monthTotal = list.reduce((sum, m) => sum + m.woluminy, 0);
+    totalCount += monthTotal;
+    const countEl = document.getElementById(`month-count-${idx}`);
+    if (countEl) countEl.textContent = monthTotal;
+  });
+  updateTotalCount();
+};
+
+async function saveData() {
+  if (!currentUser) return;
+  const userDocRef = doc(db, "users", currentUser);
+  await setDoc(userDocRef, { data: mangaData });
+}
+
+const createMonthSection = (month, index) => {
+  const section = document.createElement('div');
+  section.classList.add('month-section');
+
+  const title = document.createElement('h2');
+  title.textContent = month;
+
+  const monthCounter = document.createElement('div');
+  monthCounter.classList.add('counter');
+  monthCounter.innerHTML = `Tomy w miesiącu: <span id="month-count-${index}">0</span>`;
+
+  const row = document.createElement('div');
+  row.classList.add('covers-row');
+  row.id = `row-${index}`;
+
+  const controls = document.createElement('div');
+  controls.classList.add('controls');
+  const addButton = document.createElement('button');
+  addButton.textContent = 'Dodaj tomik';
+  addButton.onclick = () => openForm(index);
+  controls.appendChild(addButton);
+
+  section.appendChild(title);
+  section.appendChild(monthCounter);
+  section.appendChild(row);
+  section.appendChild(controls);
+
+  monthsContainer.appendChild(section);
+};
+
+const openForm = (index, data = null, cover = null) => {
+  currentMonthIndex = index;
+  editingCover = cover;
+  document.getElementById('manga-form').reset();
+  if (data) {
+    document.getElementById('cover-url').value = data.image;
+    document.getElementById('autor').value = data.autor;
+    document.getElementById('tytul').value = data.tytul;
+    document.getElementById('tom').value = data.tom;
+    document.getElementById('challenge').value = data.challenge;
+    document.getElementById('wydanie').value = data.wydanie;
+    document.getElementById('wydawnictwo').value = data.wydawnictwo;
+    document.getElementById('woluminy').value = data.woluminy;
+  }
+  document.getElementById('form-modal').style.display = 'flex';
+};
+
+document.getElementById('manga-form').onsubmit = function(e) {
+  e.preventDefault();
+  const data = {
+    image: document.getElementById('cover-url').value,
+    autor: document.getElementById('autor').value,
+    tytul: document.getElementById('tytul').value,
+    tom: document.getElementById('tom').value,
+    challenge: document.getElementById('challenge').value,
+    wydanie: document.getElementById('wydanie').value,
+    wydawnictwo: document.getElementById('wydawnictwo').value,
+    woluminy: parseInt(document.getElementById('woluminy').value)
+  };
+  if (editingCover) {
+    const list = mangaData[currentMonthIndex];
+    const idx = list.findIndex(d => d.image === editingCover.querySelector('img').src);
+    if (idx !== -1) list.splice(idx, 1);
+    editingCover.remove();
+  }
+  createMangaCover(currentMonthIndex, data, true);
+  document.getElementById('form-modal').style.display = 'none';
+  editingCover = null;
+};
+
+const reorderMonthCovers = (monthIndex, container) => {
+  const covers = Array.from(container.children);
+  mangaData[monthIndex] = covers.map(c => {
+    const img = c.querySelector('img')?.src;
+    return mangaData[monthIndex].find(d => d.image === img);
+  }).filter(Boolean);
+  saveData();
+};
+
+const createMangaCover = (monthIndex, data, save = true) => {
+  const container = document.getElementById(`row-${monthIndex}`);
+  const cover = document.createElement('div');
+  cover.classList.add('manga-cover');
+  cover.draggable = true;
+
+  const img = document.createElement('img');
+  img.src = data.image;
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.classList.add('delete-button');
+  deleteBtn.textContent = 'Usuń';
+  deleteBtn.onclick = (e) => {
+    e.stopPropagation();
+    cover.remove();
+    mangaData[monthIndex] = mangaData[monthIndex].filter(d => d !== data);
+    updateAllCounts();
+    saveData();
+  };
+
+  const dupBtn = document.createElement('button');
+  dupBtn.classList.add('duplicate-button');
+  dupBtn.textContent = 'Duplikuj';
+  dupBtn.onclick = (e) => {
+    e.stopPropagation();
+    createMangaCover(monthIndex, { ...data }, true);
+  };
+
+  const leftBtn = document.createElement('button');
+  leftBtn.classList.add('arrow-button', 'left-button');
+  leftBtn.textContent = '←';
+  leftBtn.onclick = (e) => {
+    e.stopPropagation();
+    const parent = cover.parentElement;
+    const prev = cover.previousElementSibling;
+    if (prev) {
+      parent.insertBefore(cover, prev);
+      reorderMonthCovers(monthIndex, parent);
+    }
+  };
+
+  const rightBtn = document.createElement('button');
+  rightBtn.classList.add('arrow-button', 'right-button');
+  rightBtn.textContent = '→';
+  rightBtn.onclick = (e) => {
+    e.stopPropagation();
+    const parent = cover.parentElement;
+    const next = cover.nextElementSibling?.nextElementSibling;
+    if (next) {
+      parent.insertBefore(cover, next);
+    } else {
+      parent.appendChild(cover);
+    }
+    reorderMonthCovers(monthIndex, parent);
+  };
+
+  const entries = [
+    ['Autor', data.autor],
+    ['Tytuł', data.tytul],
+    ['Tom', data.tom],
+    ['Challenge', data.challenge],
+    ['Wydanie', data.wydanie],
+    ['Wydawnictwo', data.wydanie === 'Oficjalne' ? data.wydawnictwo : ''],
+    ['Woluminów', data.woluminy]
+  ];
+
+  img.addEventListener('mousemove', (e) => {
+    popup.style.display = 'block';
+    popup.style.top = `${e.clientY + 10}px`;
+    popup.style.left = `${e.clientX + 10}px`;
+    popup.innerHTML = `<table>${entries.map(([k,v]) => v ? `<tr><td><strong>${k}</strong></td><td>${v}</td></tr>` : '').join('')}</table>`;
+  });
+
+  img.addEventListener('mouseleave', () => {
+    popup.style.display = 'none';
+  });
+
+  img.addEventListener('click', () => {
+    openForm(monthIndex, data, cover);
+  });
+
+  cover.appendChild(img);
+  cover.appendChild(deleteBtn);
+  cover.appendChild(dupBtn);
+  cover.appendChild(leftBtn);
+  cover.appendChild(rightBtn);
+  container.appendChild(cover);
+
+  if (save) {
+    mangaData[monthIndex].push(data);
+    saveData();
+    updateAllCounts();
+  }
+
+  initDragAndDrop(container, monthIndex);
+};
+
+const initDragAndDrop = (container, monthIndex) => {
+  let dragged;
+  container.addEventListener("dragstart", e => {
+    dragged = e.target;
+    e.target.style.opacity = 0.5;
+  });
+
+  container.addEventListener("dragend", e => {
+    e.target.style.opacity = "";
+  });
+
+  container.addEventListener("dragover", e => e.preventDefault());
+
+  container.addEventListener("drop", e => {
+    e.preventDefault();
+    const target = e.target.closest('.manga-cover');
+    if (target && dragged !== target) {
+      container.insertBefore(dragged, target);
+      reorderMonthCovers(monthIndex, container);
+    }
+  });
+};
+
+const loginBtn = document.getElementById('login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+
+loginBtn.onclick = async () => {
+  const email = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  if (!email || !password) return alert('Wprowadź nazwę użytkownika i hasło.');
+
+  try {
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      // jeśli użytkownik nie istnieje, tworzymy nowego
+      userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userDocRef = doc(db, "users", email);
+      await setDoc(userDocRef, { data: Array.from({ length: 12 }, () => []) });
     }
 
-    const createMonthSection = (month, index) => {
-      const section = document.createElement('div');
-      section.classList.add('month-section');
+    currentUser = userCredential.user.email;
+    document.getElementById('auth-form').style.display = 'none';
+    document.getElementById('user-info').style.display = 'block';
+    document.getElementById('user-name').textContent = currentUser;
 
-      const title = document.createElement('h2');
-      title.textContent = month;
+    const userDocRef = doc(db, "users", currentUser);
+    const docSnap = await getDoc(userDocRef);
+    mangaData = docSnap.exists() ? docSnap.data().data : Array.from({ length: 12 }, () => []);
 
-      const monthCounter = document.createElement('div');
-      monthCounter.classList.add('counter');
-      monthCounter.innerHTML = `Tomy w miesiącu: <span id="month-count-${index}">0</span>`;
+    monthsContainer.innerHTML = '';
+    months.forEach((m, i) => createMonthSection(m, i));
+    mangaData.forEach((monthList, idx) => {
+      monthList.forEach(data => createMangaCover(idx, data, false));
+    });
+    updateAllCounts();
 
-      const row = document.createElement('div');
-      row.classList.add('covers-row');
-      row.id = `row-${index}`;
-
-      const controls = document.createElement('div');
-      controls.classList.add('controls');
-      const addButton = document.createElement('button');
-      addButton.textContent = 'Dodaj tomik';
-      addButton.onclick = () => openForm(index);
-      controls.appendChild(addButton);
-
-      section.appendChild(title);
-      section.appendChild(monthCounter);
-      section.appendChild(row);
-      section.appendChild(controls);
-
-      monthsContainer.appendChild(section);
-    };
-
-    const openForm = (index, data = null, cover = null) => {
-      currentMonthIndex = index;
-      editingCover = cover;
-      document.getElementById('manga-form').reset();
-      if (data) {
-        document.getElementById('cover-url').value = data.image;
-        document.getElementById('autor').value = data.autor;
-        document.getElementById('tytul').value = data.tytul;
-        document.getElementById('tom').value = data.tom;
-        document.getElementById('challenge').value = data.challenge;
-        document.getElementById('wydanie').value = data.wydanie;
-        document.getElementById('wydawnictwo').value = data.wydawnictwo;
-        document.getElementById('woluminy').value = data.woluminy;
-      }
-      document.getElementById('form-modal').style.display = 'flex';
-    };
-
-    document.getElementById('manga-form').onsubmit = function(e) {
-      e.preventDefault();
-      const data = {
-        image: document.getElementById('cover-url').value,
-        autor: document.getElementById('autor').value,
-        tytul: document.getElementById('tytul').value,
-        tom: document.getElementById('tom').value,
-        challenge: document.getElementById('challenge').value,
-        wydanie: document.getElementById('wydanie').value,
-        wydawnictwo: document.getElementById('wydawnictwo').value,
-        woluminy: parseInt(document.getElementById('woluminy').value)
-      };
-      if (editingCover) {
-        editingCover.remove();
-        const list = mangaData[currentMonthIndex];
-        const idx = list.findIndex(d => d.image === editingCover.querySelector('img').src);
-        if (idx !== -1) list.splice(idx, 1);
-      }
-      createMangaCover(currentMonthIndex, data, true);
-      document.getElementById('form-modal').style.display = 'none';
-      editingCover = null;
-    };
-
-    const reorderMonthCovers = (monthIndex, container) => {
-      const covers = Array.from(container.children);
-      mangaData[monthIndex] = covers.map(c => {
-        const img = c.querySelector('img')?.src;
-        return mangaData[monthIndex].find(d => d.image === img);
-      }).filter(Boolean);
-      saveData();
-    };
-
-    const createMangaCover = (monthIndex, data, save = true) => {
-      const container = document.getElementById(`row-${monthIndex}`);
-      const cover = document.createElement('div');
-      cover.classList.add('manga-cover');
-      cover.draggable = true;
-
-      const img = document.createElement('img');
-      img.src = data.image;
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.classList.add('delete-button');
-      deleteBtn.textContent = 'Usuń';
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        cover.remove();
-        mangaData[monthIndex] = mangaData[monthIndex].filter(d => d !== data);
-        updateAllCounts();
-        saveData();
-      };
-
-      const dupBtn = document.createElement('button');
-      dupBtn.classList.add('duplicate-button');
-      dupBtn.textContent = 'Duplikuj';
-      dupBtn.onclick = (e) => {
-        e.stopPropagation();
-        createMangaCover(monthIndex, { ...data }, true);
-      };
-
-      const leftBtn = document.createElement('button');
-      leftBtn.classList.add('arrow-button', 'left-button');
-      leftBtn.textContent = '←';
-      leftBtn.onclick = (e) => {
-        e.stopPropagation();
-        const parent = cover.parentElement;
-        const prev = cover.previousElementSibling;
-        if (prev) {
-          parent.insertBefore(cover, prev);
-          reorderMonthCovers(monthIndex, parent);
-        }
-      };
-
-      const rightBtn = document.createElement('button');
-      rightBtn.classList.add('arrow-button', 'right-button');
-      rightBtn.textContent = '→';
-      rightBtn.onclick = (e) => {
-        e.stopPropagation();
-        const parent = cover.parentElement;
-        const next = cover.nextElementSibling?.nextElementSibling;
-        if (next) {
-          parent.insertBefore(cover, next);
-        } else {
-          parent.appendChild(cover);
-        }
-        reorderMonthCovers(monthIndex, parent);
-      };
-
-      const entries = [
-        ['Autor', data.autor],
-        ['Tytuł', data.tytul],
-        ['Tom', data.tom],
-        ['Challenge', data.challenge],
-        ['Wydanie', data.wydanie],
-        ['Wydawnictwo', data.wydanie === 'Oficjalne' ? data.wydawnictwo : ''],
-        ['Woluminów', data.woluminy]
-      ];
-
-      img.addEventListener('mousemove', (e) => {
-        popup.style.display = 'block';
-        popup.style.top = `${e.clientY + 10}px`;
-        popup.style.left = `${e.clientX + 10}px`;
-        popup.innerHTML = `<table>${entries.map(([k,v]) => v ? `<tr><td><strong>${k}</strong></td><td>${v}</td></tr>` : '').join('')}</table>`;
-      });
-
-      img.addEventListener('mouseleave', () => {
-        popup.style.display = 'none';
-      });
-
-      img.addEventListener('click', () => {
-        openForm(monthIndex, data, cover);
-      });
-
-      cover.appendChild(img);
-      cover.appendChild(deleteBtn);
-      cover.appendChild(dupBtn);
-      cover.appendChild(leftBtn);
-      cover.appendChild(rightBtn);
-      container.appendChild(cover);
-
-      if (save) {
-        mangaData[monthIndex].push(data);
-        saveData();
-        updateAllCounts();
-      }
-
-      initDragAndDrop(container, monthIndex);
-    };
-
-    const initDragAndDrop = (container, monthIndex) => {
-      let dragged;
-      container.addEventListener("dragstart", e => {
-        dragged = e.target;
-        e.target.style.opacity = 0.5;
-      });
-
-      container.addEventListener("dragend", e => {
-        e.target.style.opacity = "";
-      });
-
-      container.addEventListener("dragover", e => e.preventDefault());
-
-      container.addEventListener("drop", e => {
-        e.preventDefault();
-        const target = e.target.closest('.manga-cover');
-        if (target && dragged !== target) {
-          container.insertBefore(dragged, target);
-          reorderMonthCovers(monthIndex, container);
-        }
-      });
-    };
-
-    const loginBtn = document.getElementById('login-btn');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    loginBtn.onclick = () => {
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value.trim();
-      if (!username || !password) return alert('Wprowadź nazwę użytkownika i hasło.');
-
-      const users = getUsers();
-
-      if (users[username]) {
-        if (users[username].password !== password) {
-          return alert('Nieprawidłowe hasło.');
-        }
-      } else {
-        users[username] = { password, data: Array.from({ length: 12 }, () => []) };
-        saveUsers(users);
-      }
-
-      currentUser = username;
-      document.getElementById('auth-form').style.display = 'none';
-      document.getElementById('user-info').style.display = 'block';
-      document.getElementById('user-name').textContent = currentUser;
-
-      mangaData = users[currentUser].data;
-      monthsContainer.innerHTML = '';
-      months.forEach((m, i) => createMonthSection(m, i));
-      mangaData.forEach((monthList, idx) => {
-        monthList.forEach(data => createMangaCover(idx, data, false));
-      });
-      updateAllCounts();
-    };
-
-    logoutBtn.onclick = () => {
-      saveData();
-      currentUser = null;
-      document.getElementById('auth-form').style.display = 'block';
-      document.getElementById('user-info').style.display = 'none';
-      monthsContainer.innerHTML = '';
-      mangaData = Array.from({ length: 12 }, () => []);
-      updateTotalCount();
-    };
+  } catch (error) {
+    alert('Błąd logowania/rejestracji: ' + error
   </script>
 
 </body>
